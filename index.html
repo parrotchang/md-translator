@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>簡轉繁 Markdown 轉換工具</title>
+<meta name="description" content="在瀏覽器內將簡體中文 Markdown 轉換為台灣繁體中文與慣用詞，檔案不會上傳到伺服器。">
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --panel: #ffffff;
+    --text: #1f2328;
+    --muted: #656d76;
+    --border: #d8dee4;
+    --accent: #0b6bcb;
+    --accent-text: #ffffff;
+    --chg: #fff4c2;
+    --chg-strong: #ffe58a;
+    --danger: #b3261e;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a;
+      --panel: #1c2024;
+      --text: #e6e8ea;
+      --muted: #9aa4ae;
+      --border: #333a41;
+      --accent: #4c9aff;
+      --accent-text: #0a0f14;
+      --chg: #3d3512;
+      --chg-strong: #5a4d12;
+      --danger: #ff8a80;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 24px 16px 56px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .card h2 { font-size: 1rem; margin: 0 0 12px; }
+  .drop {
+    display: block;
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 24px 12px;
+    text-align: center;
+    color: var(--muted);
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .drop:hover, .drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .drop input { display: none; }
+  textarea {
+    width: 100%;
+    min-height: 120px;
+    margin-top: 12px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    resize: vertical;
+  }
+  .opts { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center; }
+  .opts label { display: inline-flex; gap: 8px; align-items: center; cursor: pointer; }
+  select {
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+  }
+  .hint { color: var(--muted); font-size: .875rem; margin: 8px 0 0; }
+  button {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--text);
+    font: inherit;
+    font-size: .9rem;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  button:focus-visible, select:focus-visible, textarea:focus-visible, .drop:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .bar h2 { margin: 0; }
+  table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
+  td.act { text-align: right; white-space: nowrap; }
+  td.act button + button { margin-left: 6px; }
+  tr.active td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .name { word-break: break-all; }
+  .compare { max-height: 520px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .crow { display: grid; grid-template-columns: 3.2em 1fr 1fr; }
+  .crow > div { padding: 1px 8px; white-space: pre-wrap; word-break: break-word; min-height: 1.5em; border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent); }
+  .crow .ln { color: var(--muted); text-align: right; padding-right: 6px; user-select: none; }
+  .crow.head { position: sticky; top: 0; background: var(--panel); font-weight: 600; z-index: 1; }
+  .crow.chg > div:not(.ln) { background: var(--chg); }
+  .crow.chg > div:last-child { background: var(--chg-strong); }
+  .status { min-height: 1.5em; color: var(--muted); font-size: .9rem; }
+  .status.err { color: var(--danger); }
+  footer { color: var(--muted); font-size: .85rem; text-align: center; margin-top: 24px; }
+  footer a { color: var(--accent); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>簡體 → 台灣繁體 Markdown 轉換工具</h1>
+  <p class="sub">使用 OpenCC 在瀏覽器內完成轉換，檔案不會離開你的裝置。</p>
+
+  <section class="card" aria-labelledby="h-input">
+    <h2 id="h-input">1. 加入內容</h2>
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept=".md,.markdown,.txt,text/markdown,text/plain" multiple>
+      拖放 .md / .txt 檔案到這裡，或點擊選擇檔案（可多選）
+    </label>
+    <textarea id="paste" placeholder="也可以直接貼上簡體中文 Markdown 內容…" spellcheck="false" aria-label="貼上簡體中文內容"></textarea>
+  </section>
+
+  <section class="card" aria-labelledby="h-opt">
+    <h2 id="h-opt">2. 轉換設定</h2>
+    <div class="opts">
+      <label>轉換模式
+        <select id="mode">
+          <option value="twp" selected>簡體 → 台灣繁體＋慣用詞（s2twp，預設）</option>
+          <option value="tw">簡體 → 台灣繁體字形（s2tw）</option>
+          <option value="t">簡體 → 通用繁體（s2t）</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="protect"> 保護程式碼區塊、行內程式碼與連結網址</label>
+      <label><input type="checkbox" id="prefix" checked> 下載檔名加上 tw_ 前綴</label>
+    </div>
+    <p class="hint">預設會轉換所有中文，包含程式碼內的中文註解；勾選「保護」後，這些區段會原樣保留。</p>
+  </section>
+
+  <section class="card" id="results" hidden aria-labelledby="h-res">
+    <div class="bar">
+      <h2 id="h-res">3. 轉換結果</h2>
+      <div>
+        <button id="zip" class="primary" hidden>全部下載（.zip）</button>
+        <button id="clear">清除全部</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>檔案</th><th>異動行數</th><th></th></tr></thead>
+      <tbody id="list"></tbody>
+    </table>
+  </section>
+
+  <section class="card" id="cmpCard" hidden aria-labelledby="h-cmp">
+    <div class="bar">
+      <h2 id="h-cmp">並排比對</h2>
+      <button id="copy">複製轉換結果</button>
+    </div>
+    <div class="compare" id="compare" tabindex="0" aria-label="簡繁並排比對"></div>
+  </section>
+
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+
+  <footer>
+    MIT License ·
+    轉換核心：<a href="https://github.com/nk2028/opencc-js" target="_blank" rel="noopener">opencc-js</a> /
+    <a href="https://github.com/BYVoid/OpenCC" target="_blank" rel="noopener">OpenCC</a>
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  const MAX_ROWS = 3000;
+  const $ = (s) => document.querySelector(s);
+  const el = {
+    drop: $('#drop'), file: $('#file'), paste: $('#paste'),
+    mode: $('#mode'), protect: $('#protect'), prefix: $('#prefix'),
+    results: $('#results'), list: $('#list'), zip: $('#zip'), clear: $('#clear'),
+    cmpCard: $('#cmpCard'), compare: $('#compare'), copy: $('#copy'), status: $('#status')
+  };
+
+  const state = { files: [], active: 0, rows: [] };
+  const converters = {};
+
+  function setStatus(msg, isErr) {
+    el.status.textContent = msg || '';
+    el.status.classList.toggle('err', !!isErr);
+  }
+
+  function getConverter(mode) {
+    if (!converters[mode]) converters[mode] = OpenCC.Converter({ from: 'cn', to: mode });
+    return converters[mode];
+  }
+
+  /* ---------- 保護區段：圍欄程式碼、行內程式碼、連結網址 ---------- */
+  const INLINE_RE = /(`+)[^`\n]*?\1(?!`)|\]\(\s*(?:<[^>\n]*>|[^\s)]*)/g;
+
+  function splitSegments(text) {
+    const segs = [];
+    const push = (p, t) => {
+      if (!t) return;
+      const last = segs[segs.length - 1];
+      if (last && last.p === p) last.t += t; else segs.push({ p, t });
+    };
+    const lines = text.split('\n');
+    let fence = null; // { ch, len }
+    lines.forEach((line, i) => {
+      const nl = i < lines.length - 1 ? '\n' : '';
+      if (fence) {
+        push(true, line + nl);
+        const m = /^ {0,3}(`{3,}|~{3,})\s*$/.exec(line);
+        if (m && m[1][0] === fence.ch && m[1].length >= fence.len) fence = null;
+        return;
+      }
+      const open = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+      if (open) {
+        fence = { ch: open[1][0], len: open[1].length };
+        push(true, line + nl);
+        return;
+      }
+      let last = 0, m;
+      INLINE_RE.lastIndex = 0;
+      while ((m = INLINE_RE.exec(line)) !== null) {
+        push(false, line.slice(last, m.index));
+        push(true, m[0]);
+        last = m.index + m[0].length;
+        if (m[0].length === 0) INLINE_RE.lastIndex++;
+      }
+      push(false, line.slice(last) + nl);
+    });
+    return segs;
+  }
+
+  function convertText(text, mode, protect) {
+    const conv = getConverter(mode);
+    if (!protect) return conv(text);
+    return splitSegments(text).map((s) => (s.p ? s.t : conv(s.t))).join('');
+  }
+
+  /* ---------- 輸入來源 ---------- */
+  function addFiles(fileList) {
+    const arr = Array.from(fileList);
+    if (!arr.length) return;
+    Promise.all(arr.map((f) => f.text().then((text) => ({ name: f.name, text }))))
+      .then((items) => {
+        state.files.push(...items);
+        state.active = state.files.length - items.length;
+        run();
+      })
+      .catch(() => setStatus('讀取檔案失敗，請確認檔案為 UTF-8 文字檔。', true));
+  }
+
+  function currentItems() {
+    const items = state.files.map((f) => ({ name: f.name, text: f.text }));
+    if (el.paste.value.trim()) items.push({ name: 'pasted.md', text: el.paste.value });
+    return items;
+  }
+
+  /* ---------- 轉換與顯示 ---------- */
+  let timer = null;
+  function schedule() {
+    clearTimeout(timer);
+    timer = setTimeout(run, 150);
+  }
+
+  function run() {
+    if (typeof OpenCC === 'undefined') {
+      setStatus('轉換引擎載入失敗，請檢查網路連線後重新整理頁面。', true);
+      return;
+    }
+    const mode = el.mode.value;
+    const protect = el.protect.checked;
+    const items = currentItems();
+    try {
+      state.rows = items.map((it) => {
+        const out = convertText(it.text, mode, protect);
+        const a = it.text.split('\n'), b = out.split('\n');
+        let changed = 0;
+        for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) changed++;
+        return { name: it.name, text: it.text, out, changed, lines: a.length };
+      });
+    } catch (e) {
+      setStatus('轉換時發生錯誤：' + e.message, true);
+      return;
+    }
+    if (state.active >= state.rows.length) state.active = Math.max(0, state.rows.length - 1);
+    render();
+  }
+
+  function esc(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function outName(name) {
+    return (el.prefix.checked ? 'tw_' : '') + name;
+  }
+
+  function render() {
+    const rows = state.rows;
+    const has = rows.length > 0;
+    el.results.hidden = !has;
+    el.cmpCard.hidden = !has;
+    el.zip.hidden = rows.length < 2;
+    if (!has) { el.list.innerHTML = ''; el.compare.innerHTML = ''; setStatus(''); return; }
+
+    el.list.innerHTML = rows.map((r, i) =>
+      `<tr class="${i === state.active ? 'active' : ''}">` +
+      `<td class="name">${esc(outName(r.name))}</td>` +
+      `<td>${r.changed} / ${r.lines}</td>` +
+      `<td class="act"><button data-act="view" data-i="${i}">比對</button>` +
+      `<button data-act="dl" data-i="${i}">下載</button></td></tr>`
+    ).join('');
+
+    const r = rows[state.active];
+    const a = r.text.split('\n'), b = r.out.split('\n');
+    const n = Math.min(a.length, MAX_ROWS);
+    let html = '<div class="crow head"><div class="ln"></div><div>簡體原文</div><div>台灣繁體</div></div>';
+    for (let i = 0; i < n; i++) {
+      html += `<div class="crow${a[i] !== b[i] ? ' chg' : ''}"><div class="ln">${i + 1}</div>` +
+              `<div>${esc(a[i])}</div><div>${esc(b[i])}</div></div>`;
+    }
+    el.compare.innerHTML = html;
+    setStatus(a.length > MAX_ROWS
+      ? `比對僅顯示前 ${MAX_ROWS} 行，下載的檔案為完整內容。`
+      : `完成：共 ${rows.length} 個檔案。`);
+  }
+
+  /* ---------- 下載 ---------- */
+  function saveBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  const CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+
+  function crc32(buf) {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  // 不壓縮（store）的最小 zip 產生器，檔名使用 UTF-8
+  function makeZip(files) {
+    const enc = new TextEncoder();
+    const d = new Date();
+    const dosTime = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+    const dosDate = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+    const parts = [], central = [];
+    let offset = 0;
+    for (const f of files) {
+      const nameBytes = enc.encode(f.name);
+      const data = enc.encode(f.content);
+      const crc = crc32(data);
+
+      const lh = new DataView(new ArrayBuffer(30));
+      lh.setUint32(0, 0x04034b50, true);
+      lh.setUint16(4, 20, true);
+      lh.setUint16(6, 0x0800, true);
+      lh.setUint16(8, 0, true);
+      lh.setUint16(10, dosTime, true);
+      lh.setUint16(12, dosDate, true);
+      lh.setUint32(14, crc, true);
+      lh.setUint32(18, data.length, true);
+      lh.setUint32(22, data.length, true);
+      lh.setUint16(26, nameBytes.length, true);
+      lh.setUint16(28, 0, true);
+      parts.push(lh.buffer, nameBytes, data);
+
+      const ch = new DataView(new ArrayBuffer(46));
+      ch.setUint32(0, 0x02014b50, true);
+      ch.setUint16(4, 20, true);
+      ch.setUint16(6, 20, true);
+      ch.setUint16(8, 0x0800, true);
+      ch.setUint16(10, 0, true);
+      ch.setUint16(12, dosTime, true);
+      ch.setUint16(14, dosDate, true);
+      ch.setUint32(16, crc, true);
+      ch.setUint32(20, data.length, true);
+      ch.setUint32(24, data.length, true);
+      ch.setUint16(28, nameBytes.length, true);
+      ch.setUint32(42, offset, true);
+      central.push(ch.buffer, nameBytes);
+
+      offset += 30 + nameBytes.length + data.length;
+    }
+    const cdSize = central.reduce((s, p) => s + (p.byteLength !== undefined ? p.byteLength : p.length), 0);
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true);
+    end.setUint16(8, files.length, true);
+    end.setUint16(10, files.length, true);
+    end.setUint32(12, cdSize, true);
+    end.setUint32(16, offset, true);
+    return new Blob([...parts, ...central, end.buffer], { type: 'application/zip' });
+  }
+
+  function uniqueNames(names) {
+    const seen = new Map();
+    return names.map((n) => {
+      const c = seen.get(n) || 0;
+      seen.set(n, c + 1);
+      if (!c) return n;
+      const dot = n.lastIndexOf('.');
+      return dot > 0 ? `${n.slice(0, dot)} (${c})${n.slice(dot)}` : `${n} (${c})`;
+    });
+  }
+
+  /* ---------- 事件 ---------- */
+  el.file.addEventListener('change', () => { addFiles(el.file.files); el.file.value = ''; });
+  ['dragenter', 'dragover'].forEach((ev) => el.drop.addEventListener(ev, (e) => {
+    e.preventDefault(); el.drop.classList.add('over');
+  }));
+  ['dragleave', 'drop'].forEach((ev) => el.drop.addEventListener(ev, (e) => {
+    e.preventDefault(); el.drop.classList.remove('over');
+  }));
+  el.drop.addEventListener('drop', (e) => addFiles(e.dataTransfer.files));
+
+  el.paste.addEventListener('input', schedule);
+  [el.mode, el.protect].forEach((c) => c.addEventListener('change', run));
+  el.prefix.addEventListener('change', render);
+
+  el.list.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const i = Number(btn.dataset.i);
+    const r = state.rows[i];
+    if (btn.dataset.act === 'view') {
+      state.active = i; render();
+    } else if (r) {
+      saveBlob(new Blob([r.out], { type: 'text/markdown;charset=utf-8' }), outName(r.name));
+    }
+  });
+
+  el.zip.addEventListener('click', () => {
+    const names = uniqueNames(state.rows.map((r) => outName(r.name)));
+    const files = state.rows.map((r, i) => ({ name: names[i], content: r.out }));
+    saveBlob(makeZip(files), 'tw-markdown.zip');
+  });
+
+  el.copy.addEventListener('click', async () => {
+    const r = state.rows[state.active];
+    if (!r) return;
+    try {
+      await navigator.clipboard.writeText(r.out);
+      setStatus('已複製轉換結果。');
+    } catch (_) {
+      setStatus('無法存取剪貼簿，請改用下載。', true);
+    }
+  });
+
+  el.clear.addEventListener('click', () => {
+    state.files = []; state.rows = []; state.active = 0;
+    el.paste.value = '';
+    render();
+  });
+
+  if (typeof OpenCC === 'undefined') {
+    setStatus('轉換引擎載入失敗，請檢查網路連線後重新整理頁面。', true);
+  }
+})();
+</script>
+</body>
+</html>
