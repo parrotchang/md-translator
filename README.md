@@ -27,8 +27,8 @@
 ### 本機試用
 
 ```bash
-git clone https://github.com/<your-name>/<your-repo>.git
-cd <your-repo>
+git clone https://github.com/parrotchang/md-translator.git
+cd <md-translator>
 python3 -m http.server 8788
 # 瀏覽器開啟 http://localhost:8788
 ```
